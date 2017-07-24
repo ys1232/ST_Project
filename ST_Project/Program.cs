@@ -99,6 +99,16 @@ namespace ST_Project
             #endregion 
 
 
+            //string T_1 = "2017-07-14 15:59:00";
+            //string T_2 = "2017-07-13 18:54:00";
+
+            //if (Convert.ToDateTime(T_1) > Convert.ToDateTime(T_2) )
+            //    Console.WriteLine("T_1 > T_2");
+            //else
+            //    Console.WriteLine("T_1 <= T_2");
+
+            Helper.Logging("program started");
+
             using (SqlConnection connection = new SqlConnection(Config.ConnStr))
             {
                 connection.Open();
@@ -108,49 +118,36 @@ namespace ST_Project
                 while (Symbol_Reader.Read())
                 {
                     string Ticker_Symbol = Symbol_Reader["Ticker_Symbol"].ToString();
-                    string FileName = Ticker_Symbol + "_" +DateTime.Now.ToString("yyyyMMdd_HHmmss.ffffff") + ".csv";
-                    string FileDirectory = Path.Combine(Config.DataFolder, FileName);                  
-                    string Json_Str = Test_Http_Connection(URL_Config("TIME_SERIES_INTRADAY", Ticker_Symbol, "1min", "full")).Result;
+                    Helper.Logging("Loading Stock " + Ticker_Symbol+"...");
+                    string FileName = Ticker_Symbol + "_" + DateTime.Now.ToString("yyyyMMdd_HHmmss.ffffff") + ".csv";
+                    string FileDirectory = Path.Combine(Config.DataFolder, FileName);
+                    string Json_Str = Helper.Test_Http_Connection(Helper.URL_Config("TIME_SERIES_INTRADAY", Ticker_Symbol, "1min", "full")).Result;
                     using (StreamWriter writer = new StreamWriter(FileDirectory))
                     {
                         writer.Write(Json_Str);
                     }
 
-                    Console.WriteLine(DateTime.Now.ToString("yyyyMMdd_HHmmss.ffffff") + ": " +Ticker_Symbol);
-                    DataTable csvData = Helper.GetDataTabletFromCSVFile(FileDirectory, Ticker_Symbol);
+                    Console.WriteLine(DateTime.Now.ToString("yyyyMMdd_HHmmss.ffffff") + ": " + Ticker_Symbol);
+
+                    SqlCommand cmd_2 = new SqlCommand("select max(new_timestamp) from dbo.Intraday_log where Ticker_Symbol = '" + Ticker_Symbol + "'", connection);
+                    string MaxDateTime = cmd_2.ExecuteScalar().ToString();
+
+                    DataTable csvData = Helper.GetDataTabletFromCSVFile(FileDirectory, Ticker_Symbol, MaxDateTime);
                     Helper.InsertDataIntoSQLServerUsingSQLBulkCopy(csvData);
                 }
 
+                cmd = new SqlCommand("update  [dbo].[Intraday_log] set Loaded_DTM = '" + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.ffffff") + "' where Loaded_DTM is null", connection);
+                int updated_cnt = cmd.ExecuteNonQuery();
+
+                Helper.Logging("Done," + updated_cnt.ToString() + " records have been inserted");
+                Console.WriteLine("Done,{0} records have been inserted",updated_cnt);
             }
+
 
             Console.ReadLine();
 
-            //string FilePath = @"C:\Users\Hui\Documents\Visual Studio 2015\Projects\ST_Project\ST_Project\ST_Project\data\new.txt";
-            //DataTable csvData = Helper.GetDataTabletFromCSVFile(FilePath);
-
-            //Helper.InsertDataIntoSQLServerUsingSQLBulkCopy(csvData);
-
         }
 
-        static async Task<string> Test_Http_Connection(string URL)
-        {
-            HttpClient client = new HttpClient();
-            var result = await client.GetAsync(URL);
-            MemoryStream memoryStream = new MemoryStream();
-            result.Content.CopyToAsync(memoryStream).Wait();
-            memoryStream.Position = 0;
-            var sr = new StreamReader(memoryStream);
-            var myStr = sr.ReadToEnd();
 
-            return myStr;
-        }
-
-        static string URL_Config(string function, string symbol, string interval, string outputsize)
-        {
-            string apikey = Config.apikey;
-            string DataType = Config.dataType;
-            string URL = string.Format("https://www.alphavantage.co/query?function={0}&outputsize={1}&symbol={2}&interval={3}&apikey={4}&datatype={5}", function, outputsize, symbol, interval, apikey, DataType);
-            return URL;
-        }
     }
 }
