@@ -10,6 +10,7 @@ using System.IO;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using System.Data;
+using System.Threading;
 //using System.Web.Script.Serialization;
 
 namespace ST_Project
@@ -106,7 +107,7 @@ namespace ST_Project
             //    Console.WriteLine("T_1 > T_2");
             //else
             //    Console.WriteLine("T_1 <= T_2");
-
+    
             Helper.Logging("program started");
 
             using (SqlConnection connection = new SqlConnection(Config.ConnStr))
@@ -115,8 +116,12 @@ namespace ST_Project
                 SqlCommand cmd = new SqlCommand("select Ticker_Symbol from SP500_List", connection);
                 SqlDataReader Symbol_Reader = cmd.ExecuteReader();
 
+                List<string> Ticker_Symbol_List = new List<string>();
+
                 while (Symbol_Reader.Read())
                 {
+                    Ticker_Symbol_List.Add(Symbol_Reader["Ticker_Symbol"].ToString());
+                    /**
                     string Ticker_Symbol = Symbol_Reader["Ticker_Symbol"].ToString();
                     Helper.Logging("Loading Stock " + Ticker_Symbol+"...");
                     string FileName = Ticker_Symbol + "_" + DateTime.Now.ToString("yyyyMMdd_HHmmss.ffffff") + ".csv";
@@ -134,9 +139,30 @@ namespace ST_Project
 
                     DataTable csvData = Helper.GetDataTabletFromCSVFile(FileDirectory, Ticker_Symbol, MaxDateTime);
                     Helper.InsertDataIntoSQLServerUsingSQLBulkCopy(csvData);
+                    **/
                 }
 
-                cmd = new SqlCommand("update  [dbo].[Intraday_log] set Loaded_DTM = '" + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.ffffff") + "' where Loaded_DTM is null", connection);
+                Parallel.ForEach(Ticker_Symbol_List, new ParallelOptions { MaxDegreeOfParallelism = Config.MaxThreads },  Ticker_Symbol =>
+                {
+                    Helper.Logging("Loading Stock " + Ticker_Symbol + "...");
+                    string FileName = Ticker_Symbol + "_" + DateTime.Now.ToString("yyyyMMdd_HHmmss.ffffff") + ".csv";
+                    string FileDirectory = Path.Combine(Config.DataFolder, FileName);
+                    string Json_Str = Helper.Test_Http_Connection(Helper.URL_Config("TIME_SERIES_INTRADAY", Ticker_Symbol, "1min", "full")).Result;
+                    using (StreamWriter writer = new StreamWriter(FileDirectory))
+                    {
+                        writer.Write(Json_Str);
+                    }
+
+                    Console.WriteLine(DateTime.Now.ToString("yyyyMMdd_HHmmss.ffffff") + ": " + Ticker_Symbol);
+
+                    SqlCommand cmd_2 = new SqlCommand("select max(new_timestamp) from dbo.Intraday_log where Ticker_Symbol = '" + Ticker_Symbol + "'", connection);
+                    string MaxDateTime = cmd_2.ExecuteScalar().ToString();
+
+                    DataTable csvData = Helper.GetDataTabletFromCSVFile(FileDirectory, Ticker_Symbol, MaxDateTime);
+                    Helper.InsertDataIntoSQLServerUsingSQLBulkCopy(csvData);
+                });
+
+                cmd = new SqlCommand("update  [dbo].[Intraday_log] set Loaded_DTM = '" + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff") + "' where Loaded_DTM is null", connection);
                 int updated_cnt = cmd.ExecuteNonQuery();
 
                 Helper.Logging("Done," + updated_cnt.ToString() + " records have been inserted");
@@ -146,6 +172,7 @@ namespace ST_Project
 
             Console.ReadLine();
 
+            
         }
 
 

@@ -12,6 +12,12 @@ namespace ST_Project
 {
     class Helper
     {
+
+        //public static MultiThread_Processing()
+        //{
+
+
+        //}
         public static DataTable GetDataTabletFromCSVFile(string csv_file_path, string Ticker_Symbol, string MaxDateTime)
         {
             DataTable csvData = new DataTable();
@@ -110,24 +116,28 @@ namespace ST_Project
 
         public static void Logging(string Msg)
         {
-            string path = Path.Combine(Config.LogFolder, Config.RunTime + ".log");
-            if (!File.Exists(path))
+            lock (Config.LogFolder)
             {
-                // Create a file to write to.
-                using (StreamWriter sw = File.CreateText(path))
+                string path = Path.Combine(Config.LogFolder, Config.RunTime + ".log");
+                if (!File.Exists(path))
                 {
-                    sw.WriteLine(DateTime.Now.ToString("yyyyMMdd_HHmmss.ffffff") + ": " + Msg);
-                }
-
-            }
-            else
-            {
-                using (StreamWriter sw = File.AppendText(path))
-                {
-                    sw.WriteLine(DateTime.Now.ToString("yyyyMMdd_HHmmss.ffffff") + ": " + Msg);
+                    // Create a file to write to.
+                    using (StreamWriter sw = File.CreateText(path))
+                    {
+                        sw.WriteLine(DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.ffffff") + ": " + Msg);
+                    }
 
                 }
+                else
+                {
+                    using (StreamWriter sw = File.AppendText(path))
+                    {
+                        sw.WriteLine(DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.ffffff") + ": " + Msg);
+
+                    }
+                }
             }
+            
 
         }
 
