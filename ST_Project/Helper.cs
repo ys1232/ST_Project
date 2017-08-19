@@ -69,7 +69,7 @@ namespace ST_Project
         }
 
 
-        public static void InsertDataIntoSQLServerUsingSQLBulkCopy(DataTable csvFileData)
+        public static void InsertDataIntoSQLServerUsingSQLBulkCopy(DataTable csvFileData, string _Ticker_Symbol)
         {
             if (csvFileData!= null)
             {
@@ -84,7 +84,7 @@ namespace ST_Project
                         s.WriteToServer(csvFileData);
                     }
                 }
-                Helper.Logging("Loaded " + csvFileData.Rows.Count.ToString() + " records into table");
+                Helper.Logging("Loaded " + csvFileData.Rows.Count.ToString() + " records into table for "+ _Ticker_Symbol);
 
             }
             else

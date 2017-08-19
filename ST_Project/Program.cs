@@ -121,25 +121,7 @@ namespace ST_Project
                 while (Symbol_Reader.Read())
                 {
                     Ticker_Symbol_List.Add(Symbol_Reader["Ticker_Symbol"].ToString());
-                    /**
-                    string Ticker_Symbol = Symbol_Reader["Ticker_Symbol"].ToString();
-                    Helper.Logging("Loading Stock " + Ticker_Symbol+"...");
-                    string FileName = Ticker_Symbol + "_" + DateTime.Now.ToString("yyyyMMdd_HHmmss.ffffff") + ".csv";
-                    string FileDirectory = Path.Combine(Config.DataFolder, FileName);
-                    string Json_Str = Helper.Test_Http_Connection(Helper.URL_Config("TIME_SERIES_INTRADAY", Ticker_Symbol, "1min", "full")).Result;
-                    using (StreamWriter writer = new StreamWriter(FileDirectory))
-                    {
-                        writer.Write(Json_Str);
-                    }
-
-                    Console.WriteLine(DateTime.Now.ToString("yyyyMMdd_HHmmss.ffffff") + ": " + Ticker_Symbol);
-
-                    SqlCommand cmd_2 = new SqlCommand("select max(new_timestamp) from dbo.Intraday_log where Ticker_Symbol = '" + Ticker_Symbol + "'", connection);
-                    string MaxDateTime = cmd_2.ExecuteScalar().ToString();
-
-                    DataTable csvData = Helper.GetDataTabletFromCSVFile(FileDirectory, Ticker_Symbol, MaxDateTime);
-                    Helper.InsertDataIntoSQLServerUsingSQLBulkCopy(csvData);
-                    **/
+                    
                 }
 
                 Parallel.ForEach(Ticker_Symbol_List, new ParallelOptions { MaxDegreeOfParallelism = Config.MaxThreads },  Ticker_Symbol =>
@@ -153,13 +135,13 @@ namespace ST_Project
                         writer.Write(Json_Str);
                     }
 
-                    Console.WriteLine(DateTime.Now.ToString("yyyyMMdd_HHmmss.ffffff") + ": " + Ticker_Symbol);
+                    Console.WriteLine(DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.ffffff") + ": " + Ticker_Symbol);
 
                     SqlCommand cmd_2 = new SqlCommand("select max(new_timestamp) from dbo.Intraday_log where Ticker_Symbol = '" + Ticker_Symbol + "'", connection);
                     string MaxDateTime = cmd_2.ExecuteScalar().ToString();
 
                     DataTable csvData = Helper.GetDataTabletFromCSVFile(FileDirectory, Ticker_Symbol, MaxDateTime);
-                    Helper.InsertDataIntoSQLServerUsingSQLBulkCopy(csvData);
+                    Helper.InsertDataIntoSQLServerUsingSQLBulkCopy(csvData, Ticker_Symbol);
                 });
 
                 cmd = new SqlCommand("update  [dbo].[Intraday_log] set Loaded_DTM = '" + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff") + "' where Loaded_DTM is null", connection);
