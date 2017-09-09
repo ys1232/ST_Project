@@ -99,21 +99,34 @@ namespace ST_Project
             //}
             #endregion 
 
-
-            //string T_1 = "2017-07-14 15:59:00";
-            //string T_2 = "2017-07-13 18:54:00";
-
-            //if (Convert.ToDateTime(T_1) > Convert.ToDateTime(T_2) )
-            //    Console.WriteLine("T_1 > T_2");
-            //else
-            //    Console.WriteLine("T_1 <= T_2");
     
             Helper.Logging("program started");
+
+            string select_query = "select Ticker_Symbol from SP500_List";
+            string check_query = "select Ticker_Symbol from dbo.Intraday_log group by Ticker_Symbol having max(new_timestamp) < (select max(new_timestamp) from dbo.Intraday_log)";
+
+            Helper.Logging("initial_load...");
+            LoadData(select_query);
+            Helper.Logging("1st time check missing records");
+            LoadData(check_query);
+            Helper.Logging("2nd time check missing records");
+            LoadData(check_query);
+
+            Console.ReadLine();
+
+            
+        }
+
+        public static void LoadData(string Query)
+        {
 
             using (SqlConnection connection = new SqlConnection(Config.ConnStr))
             {
                 connection.Open();
                 SqlCommand cmd = new SqlCommand("select Ticker_Symbol from SP500_List", connection);
+                /* check ticker_symbols with less data
+                //SqlCommand cmd = new SqlCommand("select Ticker_Symbol from dbo.Intraday_log group by Ticker_Symbol having max(new_timestamp) < (select max(new_timestamp) from dbo.Intraday_log)", connection);
+                */
                 SqlDataReader Symbol_Reader = cmd.ExecuteReader();
 
                 List<string> Ticker_Symbol_List = new List<string>();
@@ -121,10 +134,10 @@ namespace ST_Project
                 while (Symbol_Reader.Read())
                 {
                     Ticker_Symbol_List.Add(Symbol_Reader["Ticker_Symbol"].ToString());
-                    
+
                 }
 
-                Parallel.ForEach(Ticker_Symbol_List, new ParallelOptions { MaxDegreeOfParallelism = Config.MaxThreads },  Ticker_Symbol =>
+                Parallel.ForEach(Ticker_Symbol_List, new ParallelOptions { MaxDegreeOfParallelism = Config.MaxThreads }, Ticker_Symbol =>
                 {
                     Helper.Logging("Loading Stock " + Ticker_Symbol + "...");
                     string FileName = Ticker_Symbol + "_" + DateTime.Now.ToString("yyyyMMdd_HHmmss.ffffff") + ".csv";
@@ -141,22 +154,18 @@ namespace ST_Project
                     string MaxDateTime = cmd_2.ExecuteScalar().ToString();
 
                     DataTable csvData = Helper.GetDataTabletFromCSVFile(FileDirectory, Ticker_Symbol, MaxDateTime);
-                    Helper.InsertDataIntoSQLServerUsingSQLBulkCopy(csvData, Ticker_Symbol);
+                    if (csvData == null)
+                        Helper.Logging(Ticker_Symbol + ": csvData is empty");
+                    else
+                        Helper.InsertDataIntoSQLServerUsingSQLBulkCopy(csvData, Ticker_Symbol);
                 });
 
                 cmd = new SqlCommand("update  [dbo].[Intraday_log] set Loaded_DTM = '" + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff") + "' where Loaded_DTM is null", connection);
                 int updated_cnt = cmd.ExecuteNonQuery();
 
                 Helper.Logging("Done," + updated_cnt.ToString() + " records have been inserted");
-                Console.WriteLine("Done,{0} records have been inserted",updated_cnt);
+                Console.WriteLine("Done,{0} records have been inserted", updated_cnt);
             }
-
-
-            Console.ReadLine();
-
-            
         }
-
-
     }
 }

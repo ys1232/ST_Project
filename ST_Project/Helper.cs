@@ -29,6 +29,10 @@ namespace ST_Project
                     string Line;
                     DataColumn datecolumn;
                     string[] colFields = sr.ReadLine().Split(',');  // the column name is in the first line
+
+                    if (colFields[0] == "{}")   // the CSV file is empty
+                        return null;
+
                     foreach (string column in colFields)
                     {
                         datecolumn = new DataColumn(column);
@@ -63,6 +67,7 @@ namespace ST_Project
             }
             catch (Exception ex)
             {
+                Helper.Logging(Ticker_Symbol + " Error occurred: " + ex.Source + " \n\n " + ex.Message + " \n\n " + ex.StackTrace + ex.Message);
                 return null;
             }
             return csvData;
